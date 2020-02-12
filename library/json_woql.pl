@@ -89,10 +89,22 @@ json_to_woql_ast(JSON,WOQL) :-
     ->  json_to_woql_ast(A,WQA),
         json_to_woql_ast(B,WQB),
         WOQL = '='(WQA,WQB)
+    ;   _{'http://terminusdb.com/woql#substring' : [String, Before, Length, After, Substring] } :< JSON
+    ->  json_to_woql_ast(String, WString),
+        json_to_woql_ast(Before, WBefore),
+        json_to_woql_ast(Length, WLength),
+        json_to_woql_ast(After, WAfter),
+        json_to_woql_ast(Substring, WSubstring),
+        WOQL = sub_string(WString,WBefore,WLength,WAfter,WSubstring)
     ;   _{'http://terminusdb.com/woql#update' : [ Doc ] } :< JSON
     ->  WOQL = update_object(Doc)
     ;   _{'http://terminusdb.com/woql#delete' : [ Doc ] } :< JSON
     ->  WOQL = delete(Doc)
+    ;   _{'http://terminusdb.com/woql#with' : [ Graph, Path, Query] } :< JSON
+    ->  json_to_woql_ast(Graph,WGraph),
+        json_to_woql_ast(Path,WPath),
+        json_to_woql_ast(Query,WQuery),
+        WOQL = with(WGraph,WPath,WQuery)
     ;   _{'http://terminusdb.com/woql#add_triple' : [ Subject, Predicate, Object ] } :< JSON
     ->  json_to_woql_ast(Subject,WQA),
         json_to_woql_ast(Predicate,WQB),
@@ -209,6 +221,10 @@ json_to_woql_ast(JSON,WOQL) :-
         json_to_woql_ast(Sep,WSep),
         json_to_woql_ast(Value,WValue),
         WOQL = join(WList,WSep,WValue)
+    ;   _{'http://terminusdb.com/woql#sum' : [ List, Value ] } :< JSON
+    ->  json_to_woql_ast(List,WList),
+        json_to_woql_ast(Value,WValue),
+        WOQL = sum(WList,WValue)
     ;   _{'http://terminusdb.com/woql#start' : [ N, Q ] } :< JSON
     ->  json_to_woql_arith(N,WN),
         json_to_woql_ast(Q,WQ),
@@ -222,10 +238,10 @@ json_to_woql_ast(JSON,WOQL) :-
         json_to_woql_ast(String,WString),
         json_to_woql_ast(List,WList),
         WOQL = re(WPat, WString, WList)
-    ;   _{'http://terminusdb.com/woql#order_by' : [ Template, Query ] } :< JSON
-    ->  json_to_woql_ast(Template,WTemplate),
+    ;   _{'http://terminusdb.com/woql#order_by' : [ Templates, Query ] } :< JSON
+    ->  maplist([V1,V2]>>(json_to_woql_ast(V1,V2)), Templates, WTemplates),
         json_to_woql_ast(Query,WQuery),
-        WOQL = order_by(WTemplate,WQuery)
+        WOQL = order_by(WTemplates,WQuery)
     ;   _{'http://terminusdb.com/woql#asc' : Vars } :< JSON
     ->  maplist([V1,V2]>>(json_to_woql_ast(V1,V2)),Vars,WVars),
         WOQL = asc(WVars)

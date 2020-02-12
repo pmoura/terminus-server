@@ -2,7 +2,6 @@
 <html lang="en">
 	<head>
 	    <meta charset="utf-8">
-            <base href="https://terminusdb.github.io/terminus-dashboard/dist/" target="_blank">
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 	    <title>Terminus DB Management Dashboard</title>
 		<link rel="shortcut icon" type="image/png" href="https://terminusdb.com/t/favicon.png"/>
@@ -58,7 +57,7 @@
 			}
 		};
 
-		TerminusConfig.location = {server: "~s://~s:~d", key: "~s"};
+		TerminusConfig.location = {server: "~s", key: "root"};
 		
 		function loadTerminatorWhenReady(){
 			if (typeof TerminusDashboard != "undefined"){

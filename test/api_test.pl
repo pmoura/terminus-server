@@ -66,6 +66,8 @@ run_api_tests :-
     try(run_schema_update_test),
     try(run_woql_update_test),
     try(run_woql_verify_update_test),
+    try(run_woql_re_test),
+    try(run_woql_typecast_test),
     try(run_db_delete_test),
     % ) UPDATE_WOQL_CHECKING
     %
@@ -82,6 +84,7 @@ run_api_tests :-
     try(run_get_filled_frame_test),
     try(run_woql_test),
     try(run_woql_empty_error_test),
+    %try(run_woql_external_file_test),
     try(run_woql_syntax_error_test),
     try(run_woql_csv_test),
     try(run_woql_instantiation_test),
@@ -463,6 +466,43 @@ run_woql_test :-
         N >= 8
     ;   fail).
 
+
+run_woql_external_file_test :-
+    config:server(Server),
+    auth(Auth),
+
+    Query = _{'@context':_{'rdf':"http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+                           'rdfs':"http://www.w3.org/2000/01/rdf-schema#",
+                           'xsd':"http://www.w3.org/2001/XMLSchema#",
+                           'owl':"http://www.w3.org/2002/07/owl#",
+                           'tcs':"http://terminusdb.com/schema/tcs#",
+                           'xdd':"http://terminusdb.com/schema/xdd#",
+                           'v':"http://terminusdb.com/woql/variable/",
+                           'terminus':"http://terminusdb.com/schema/terminus#",
+                           'vio':"http://terminusdb.com/schema/vio#",
+                           'doc':"http://localhost:6363/terminus/document/",
+                           'scm':"http://localhost:6363/terminus/schema#",
+                           'db':"http://localhost:6363/terminus/"},
+              'get':[[_{'as':[_{'@value':"councillor_a"},"v:Rep_A"]},
+                      _{'as':[_{'@value':"councillor_b"},"v:Rep_B"]},
+                      _{'as':[_{'@value':"party_a"},"v:Party_A"]},
+                      _{'as':[_{'@value':"party_b"},"v:Party_B"]},
+                      _{'as':[_{'@value':"distance"},"v:Distance"]}],
+                     _{'remote':["https://terminusdb.com/t/data/council/weighted_similarity.csv"]}
+                    ]},
+
+    with_output_to(
+        string(Payload),
+        json_write(current_output, Query, [])
+    ),
+
+    www_form_encode(Payload, Encoded),
+    atomic_list_concat([Server,'/terminus/woql', '?terminus%3Aquery=', Encoded], URI),
+    Args = ['-s', '--user', Auth,'-X','GET',URI],
+    report_curl_command(Args),
+    curl_json(Args,Term),
+    nl,json_write_dict(current_output,Term,[]).
+
 run_woql_empty_error_test :-
     config:server(Server),
     auth(Auth),
@@ -693,6 +733,66 @@ run_woql_instantiation_test :-
         'terminus:status' :"terminus:failure"
     } :< Term.
 
+run_woql_re_test :-
+    config:server(Server),
+    auth(Auth),
+
+    Query =  _{re: [_{'@value': ".*/candidate/(.*)",'@type': "xsd:string"},
+                    "/candidate/asdfadsf",
+                    _{list: ["v:AllDI","v:IDURL_Extension"]}]},
+
+    with_output_to(
+        string(Payload),
+        json_write(current_output, Query, [])
+    ),
+
+    www_form_encode(Payload,Encoded),
+    atomic_list_concat([Server,'/terminus/woql?terminus%3Aquery=',Encoded], URI),
+
+    Args = ['--user', Auth,'-X','GET',URI],
+    report_curl_command(Args),
+    curl_json(Args,Term),
+    nl,json_write_dict(current_output,Term,[]),
+
+    _{bindings: [
+          _{'http://terminusdb.com/woql/variable/AllDI':
+            _{'@type':"http://www.w3.org/2001/XMLSchema#string",
+	          '@value':"http://terminusdb.com/woql#/candidate/asdfadsf"},
+            'http://terminusdb.com/woql/variable/IDURL_Extension':
+            _{'@type':"http://www.w3.org/2001/XMLSchema#string",
+	          '@value':"asdfadsf"}}
+      ]} :< Term.
+
+run_woql_typecast_test :-
+    config:server(Server),
+    auth(Auth),
+
+    Query =  _{and : [_{typecast: [_{'@value': "[1,2]",'@type': "xsd:string"},
+                                   "http://terminusdb.com/schema/xdd#integerRange",
+                                   "v:Res1"]},
+                      _{typecast: [_{'@value': "[1.1,2.2]",'@type': "xsd:string"},
+                                   "http://terminusdb.com/schema/xdd#decimalRange",
+                                   "v:Res2"]}]},
+
+    with_output_to(
+        string(Payload),
+        json_write(current_output, Query, [])
+    ),
+
+    www_form_encode(Payload,Encoded),
+    atomic_list_concat([Server,'/terminus/woql?terminus%3Aquery=',Encoded], URI),
+
+    Args = ['--user', Auth,'-X','GET',URI],
+    report_curl_command(Args),
+    curl_json(Args,Term),
+    nl,json_write_dict(current_output,Term,[]),
+
+    _{bindings:[_{'http://terminusdb.com/woql/variable/Res1':
+                  _{'@type':"http://terminusdb.com/schema/xdd#integerRange",'@value':"[1,2]"},
+                  'http://terminusdb.com/woql/variable/Res2':
+                  _{'@type':"http://terminusdb.com/schema/xdd#decimalRange",'@value':"[1.1,2.2]"}}
+               ]} :< Term.
+
 /****************************************************************
  * Instance Checking Tests
  ***************************************************************/
@@ -806,7 +906,7 @@ run_schema_datatypes_update_test :-
     auth(Auth),
 
     terminus_path(Path),
-    interpolate([Path, '/terminus-schema/datatypes.owl.ttl'], TTL_File),
+    interpolate([Path, '/terminus-schema/examples/datatypes.owl.ttl'], TTL_File),
 
     atomic_list_concat([Server,'/terminus_qa_test/schema'], URI),
 
